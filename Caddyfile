@@ -1,0 +1,11 @@
+https://{$TRANSCODER_HOST:127.0.0.1}:8765 {
+  tls internal
+
+  request_body {
+    # Keep in sync with AHC_TS_MAX_UPLOAD_BYTES.
+    max_size 1GB
+  }
+
+  reverse_proxy transcoding-server:8765
+}
+

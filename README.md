@@ -18,7 +18,7 @@ This server accepts uploaded chunk files, transcodes each chunk to HEVC, and ret
 pip install -e .
 ```
 
-## Run
+## Run (direct app, no TLS)
 
 ```bash
 adaptive-hevc-transcoding-server --host 0.0.0.0 --port 8765
@@ -35,6 +35,59 @@ Environment variables:
 - `AHC_TS_FFMPEG_TIMEOUT_SECONDS` (default `7200`)
 - `AHC_TS_AUTH_TOKEN` (optional bearer token)
 
+## Run with Caddy TLS on port 8765
+
+This repository includes a `docker-compose.yml` + `Caddyfile` that puts the app behind Caddy with `tls internal`.
+
+- Client URL becomes: `https://<transcoder_local_ip>:8765`
+- Caddy owns host port `8765`.
+- The Python app is only reachable inside the Docker network.
+
+### 1) Set the host/IP that clients will use
+
+Set `TRANSCODER_HOST` to the exact hostname/IP that your client will call:
+
+```bash
+export TRANSCODER_HOST=192.168.1.50
+```
+
+### 2) Start services
+
+```bash
+docker compose up -d --build
+```
+
+### 3) Export Caddy local CA root certificate
+
+After first startup, copy Caddy's internal root CA cert:
+
+```bash
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+```
+
+### 4) Use trusted HTTPS from adaptive-hevc-converter
+
+`adaptive-hevc-converter` uses `httpx`, which honors `SSL_CERT_FILE`.
+
+```bash
+SSL_CERT_FILE=./caddy-root.crt adaptive-hevc-converter input.mp4 \
+  --transcode-server https://192.168.1.50:8765
+```
+
+With token auth:
+
+```bash
+SSL_CERT_FILE=./caddy-root.crt adaptive-hevc-converter input.mp4 \
+  --transcode-server https://192.168.1.50:8765 \
+  --transcode-server-token secret-token
+```
+
+### 5) Verify endpoint with curl
+
+```bash
+curl --cacert ./caddy-root.crt https://192.168.1.50:8765/healthz
+```
+
 ## API
 
 - `GET /healthz`
@@ -48,7 +101,7 @@ Example `params`:
 {"quality":"efficient","hardware":true}
 ```
 
-## Using with adaptive-hevc-converter
+## Using with adaptive-hevc-converter (direct HTTP)
 
 ```bash
 adaptive-hevc-converter input.mp4 \

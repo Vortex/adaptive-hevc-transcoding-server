@@ -1,0 +1,32 @@
+services:
+  transcoding-server:
+    build:
+      context: .
+    image: adaptive-hevc-transcoding-server:local
+    environment:
+      - AHC_TS_HOST=0.0.0.0
+      - AHC_TS_PORT=8765
+      - AHC_TS_MAX_UPLOAD_BYTES=${AHC_TS_MAX_UPLOAD_BYTES:-1073741824}
+      - AHC_TS_MAX_CONCURRENT_JOBS=${AHC_TS_MAX_CONCURRENT_JOBS:-1}
+      - AHC_TS_FFMPEG_TIMEOUT_SECONDS=${AHC_TS_FFMPEG_TIMEOUT_SECONDS:-7200}
+      - AHC_TS_AUTH_TOKEN=${AHC_TS_AUTH_TOKEN:-}
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10
+    depends_on:
+      - transcoding-server
+    ports:
+      - "8765:8765"
+    environment:
+      - TRANSCODER_HOST=${TRANSCODER_HOST:-127.0.0.1}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+
