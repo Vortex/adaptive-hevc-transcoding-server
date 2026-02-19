@@ -1,5 +1,5 @@
 fastapi>=0.115.0
 uvicorn>=0.30.0
 python-multipart>=0.0.9
-adaptive-hevc-converter>=0.8.0
+adaptive-hevc-converter @ git+https://github.com/media-organizer/adaptive-hevc-converter.git
 
