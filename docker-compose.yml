@@ -1,7 +1,8 @@
 services:
   transcoding-server:
     build:
-      context: .
+      context: ..
+      dockerfile: adaptive-hevc-transcoding-server/Dockerfile
     image: adaptive-hevc-transcoding-server:local
     environment:
       - AHC_TS_HOST=0.0.0.0
