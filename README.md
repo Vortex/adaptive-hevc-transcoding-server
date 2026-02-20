@@ -30,7 +30,7 @@ Environment variables:
 - `AHC_TS_PORT` (default `8765`)
 - `AHC_TS_FFMPEG_PATH` (default `ffmpeg`)
 - `AHC_TS_TEMP_DIR` (default system temp dir)
-- `AHC_TS_MAX_CONCURRENT_JOBS` (default `1`)
+- `AHC_TS_MAX_CONCURRENT_JOBS` (default `1`) — max encodes at once; each encode uses all CPU cores (x265 `pools=+`). Increase to match client `--transcode-server-concurrency` if you want parallel chunk encodes.
 - `AHC_TS_MAX_UPLOAD_BYTES` (default `1073741824`)
 - `AHC_TS_FFMPEG_TIMEOUT_SECONDS` (default `7200`)
 - `AHC_TS_AUTH_TOKEN` (optional bearer token)
@@ -43,13 +43,15 @@ This repository includes a `docker-compose.yml` + `Caddyfile` that puts the app 
 - Caddy owns host port `8765`.
 - The Python app is only reachable inside the Docker network.
 
-### 1) Set the host/IP that clients will use
+### 1) Set the host/IP that clients will use (required for HTTPS)
 
-Set `TRANSCODER_HOST` to the exact hostname/IP that your client will call:
+**On the machine where Docker runs**, set `TRANSCODER_HOST` to the **exact** IP or hostname your client uses in the URL. If you use `https://192.168.3.18:8765`, set:
 
 ```bash
-export TRANSCODER_HOST=192.168.1.50
+export TRANSCODER_HOST=192.168.3.18
 ```
+
+Or copy `.env.example` to `.env` and set `TRANSCODER_HOST` there. If this doesn’t match the client URL, Caddy won’t have a matching cert and you’ll get `TLSV1_ALERT_INTERNAL_ERROR`.
 
 ### 2) Start services
 
@@ -98,7 +100,12 @@ adaptive-hevc-converter input.mp4 \
 
 ### 6) If you see `TLSV1_ALERT_INTERNAL_ERROR`
 
-When connecting **by IP** (e.g. `https://192.168.3.18:8765`), many clients don’t send the host in the TLS SNI field. Caddy then can’t choose a certificate and returns an internal error. The Caddyfile sets `default_sni` to your `TRANSCODER_HOST` so Caddy knows which cert to use. Ensure `TRANSCODER_HOST` is set to the **exact** IP/host the client uses, then restart: `docker compose up -d --build`.
+1. **On the server** (where Docker runs), `TRANSCODER_HOST` must be set to the same IP the client uses (e.g. `192.168.3.18`) **before** starting Caddy. If it was unset or wrong, Caddy’s cert and `default_sni` are for the wrong host. Set it, then restart:
+   ```bash
+   export TRANSCODER_HOST=192.168.3.18
+   docker compose down && docker compose up -d
+   ```
+2. If you already had Caddy running with a different host, remove the volume so Caddy issues a new cert for the new host: `docker compose down -v`, set `TRANSCODER_HOST`, then `docker compose up -d`. Re-export the root cert and point the client at it again.
 
 ### 7) Verify endpoint with curl
 

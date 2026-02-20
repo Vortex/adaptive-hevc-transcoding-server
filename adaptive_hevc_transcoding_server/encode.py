@@ -53,6 +53,10 @@ def build_encode_command(
     preset_obj = QualityPresets.get_preset(params.quality)
     rate_control_mode = getattr(preset_obj, "rate_control", "crf") or "crf"
     x265_params = QualityPresets.get_x265_params(params.quality, analysis)
+    # Use all CPU cores for encoding (pools=+ = all cores on NUMA node). Without this,
+    # libx265 may default to 2 threads and you see only ~200% CPU on the server.
+    if ":pools=" not in x265_params and "pools=" not in x265_params:
+        x265_params = f"{x265_params}:pools=+"
     ffmpeg_preset = QualityPresets.get_ffmpeg_preset(params.quality, analysis)
 
     crf: Optional[int] = None
