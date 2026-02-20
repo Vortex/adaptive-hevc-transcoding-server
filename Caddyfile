@@ -1,3 +1,9 @@
+# When clients connect by IP, they often don't send SNI; Caddy then can't pick a cert
+# and returns TLS "internal error". default_sni tells Caddy which cert to use in that case.
+{
+  default_sni {$TRANSCODER_HOST:127.0.0.1}
+}
+
 https://{$TRANSCODER_HOST:127.0.0.1}:8765 {
   tls internal
 

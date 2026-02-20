@@ -56,3 +56,6 @@ env/
 
 # Test artifacts
 test_movies/
+
+# Certificates
+*.crt

@@ -57,32 +57,50 @@ export TRANSCODER_HOST=192.168.1.50
 docker compose up -d --build
 ```
 
-### 3) Export Caddy local CA root certificate
+### 3) Why do I need a certificate? (browsers don’t ask for one)
 
-After first startup, copy Caddy's internal root CA cert:
+Normal HTTPS sites use certificates signed by **public** CAs (e.g. Let’s Encrypt). Your OS and browser already trust those, so no extra step.
+
+With **`tls internal`**, Caddy creates its **own** CA and signs the server cert with it. That CA is not in your system trust store. In a **browser** you get a warning and click “Advanced” → “Proceed” — you’re making a one-time exception. **Scripts** (Python, curl) can’t do that; they either need to be told which CA to trust, or you disable verification (insecure). So we need to give the converter Caddy’s root cert once (or install it into the system store so nothing needs to be passed).
+
+### 4) Where is the certificate and how to get it
+
+The file lives **inside** the Caddy container. Caddy creates it on **first use** (first request to `https://...:8765`). If the path doesn’t exist yet, trigger that once (e.g. open `https://<TRANSCODER_HOST>:8765/healthz` in the browser and accept the warning), then copy it out:
 
 ```bash
 docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
 ```
 
-### 4) Use trusted HTTPS from adaptive-hevc-converter
+You now have `./caddy-root.crt` on your machine. Use it as below, or install it into your **system** trust store so you never need to pass it again (e.g. on Debian/Ubuntu: `sudo cp caddy-root.crt /usr/local/share/ca-certificates/caddy-local.crt` then `sudo update-ca-certificates`).
 
-`adaptive-hevc-converter` uses `httpx`, which honors `SSL_CERT_FILE`.
+### 5) Use trusted HTTPS from adaptive-hevc-converter
+
+Either set the CA once in the environment, or pass it on the command line (no need for `SSL_CERT_FILE`):
 
 ```bash
-SSL_CERT_FILE=./caddy-root.crt adaptive-hevc-converter input.mp4 \
-  --transcode-server https://192.168.1.50:8765
+# Option A: env (e.g. in ~/.bashrc)
+export AHC_TRANSCODE_SERVER_CA=/path/to/caddy-root.crt
+
+# Option B: flag
+adaptive-hevc-converter input.mp4 \
+  --transcode-server https://192.168.1.50:8765 \
+  --transcode-server-ca ./caddy-root.crt
 ```
 
 With token auth:
 
 ```bash
-SSL_CERT_FILE=./caddy-root.crt adaptive-hevc-converter input.mp4 \
+adaptive-hevc-converter input.mp4 \
   --transcode-server https://192.168.1.50:8765 \
+  --transcode-server-ca ./caddy-root.crt \
   --transcode-server-token secret-token
 ```
 
-### 5) Verify endpoint with curl
+### 6) If you see `TLSV1_ALERT_INTERNAL_ERROR`
+
+When connecting **by IP** (e.g. `https://192.168.3.18:8765`), many clients don’t send the host in the TLS SNI field. Caddy then can’t choose a certificate and returns an internal error. The Caddyfile sets `default_sni` to your `TRANSCODER_HOST` so Caddy knows which cert to use. Ensure `TRANSCODER_HOST` is set to the **exact** IP/host the client uses, then restart: `docker compose up -d --build`.
+
+### 7) Verify endpoint with curl
 
 ```bash
 curl --cacert ./caddy-root.crt https://192.168.1.50:8765/healthz
